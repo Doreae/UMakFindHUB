@@ -1,0 +1,159 @@
+package lostandfound;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.sql.*;
+import java.io.File;
+import java.io.FileWriter;
+
+public class DashboardPanel extends JPanel {
+    private JLabel lblTotalFound, lblTotalClaimed, lblTotalUnclaimed;
+    private DefaultTableModel activityTableModel;
+    private Image mainBgImage; // Stores the campus background
+
+    public DashboardPanel() {
+        mainBgImage = new ImageIcon("src/lostandfound/images/bg.png").getImage();
+        setLayout(new BorderLayout(0, 20));
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // ==========================================
+        // RESTORED: STAT CARDS (Transparent Background)
+        // ==========================================
+        JPanel statsContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+        statsContainer.setOpaque(false); // Let the image show through
+
+        lblTotalFound = new JLabel("0", SwingConstants.CENTER);
+        lblTotalClaimed = new JLabel("0", SwingConstants.CENTER);
+        lblTotalUnclaimed = new JLabel("0", SwingConstants.CENTER);
+
+        statsContainer.add(createStatCard("Total Found Items", lblTotalFound));
+        statsContainer.add(createStatCard("Successfully Claimed", lblTotalClaimed));
+        statsContainer.add(createStatCard("Unclaimed Items", lblTotalUnclaimed));
+        add(statsContainer, BorderLayout.NORTH);
+
+        // ==========================================
+        // RESTORED: RECENT ACTIVITY & EXPORT BUTTON
+        // ==========================================
+        JPanel activityPanel = new JPanel(new BorderLayout(0, 10));
+        activityPanel.setOpaque(false);
+        activityPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.WHITE));
+
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setOpaque(false);
+
+        JLabel lblTitle = new JLabel("Recent Activity:");
+        lblTitle.setFont(AppConstants.marcellusHeader.deriveFont(24f));
+        lblTitle.setForeground(Color.WHITE);
+        titlePanel.add(lblTitle, BorderLayout.WEST);
+
+        // The Green Export Button
+        JButton btnExport = new JButton("📥 Export to Excel");
+        btnExport.setBackground(new Color(46, 204, 113));
+        btnExport.setForeground(Color.BLACK);
+        btnExport.setFont(AppConstants.metropolisBold);
+        btnExport.addActionListener(e -> exportToExcel());
+        
+        JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnWrapper.setOpaque(false);
+        btnWrapper.add(btnExport);
+        titlePanel.add(btnWrapper, BorderLayout.EAST);
+
+        activityPanel.add(titlePanel, BorderLayout.NORTH);
+
+        // Restored Table Styling
+        activityTableModel = new DefaultTableModel(null, new String[]{"Date Logged", "Item Description", "Status", "Location"}) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(activityTableModel);
+        table.setRowHeight(40);
+        table.setFont(AppConstants.metropolisBody);
+        table.setShowGrid(true);
+        table.setGridColor(new Color(100, 150, 220)); 
+        table.setBackground(new Color(224, 247, 250)); 
+        
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.getViewport().setBackground(new Color(133, 179, 235));
+        activityPanel.add(scroll, BorderLayout.CENTER);
+        add(activityPanel, BorderLayout.CENTER);
+    }
+
+    // Overrides standard painting to stretch the background image
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        if (mainBgImage != null) g.drawImage(mainBgImage, 0, 0, getWidth(), getHeight(), this);
+    }
+
+    private JPanel createStatCard(String title, JLabel num) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setPreferredSize(new Dimension(200, 130)); card.setBackground(Color.WHITE);
+        card.add(new JLabel(title, SwingConstants.CENTER), BorderLayout.NORTH); 
+        num.setFont(AppConstants.metropolisBold.deriveFont(42f));
+        num.setForeground(new Color(41, 128, 185));
+        card.add(num, BorderLayout.CENTER);
+        return card;
+    }
+
+    public void refreshData() {
+        try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
+             Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM items");
+            if (rs.next()) lblTotalFound.setText(rs.getString(1));
+            rs = stmt.executeQuery("SELECT COUNT(*) FROM items WHERE status = 'CLAIMED'");
+            if (rs.next()) lblTotalClaimed.setText(rs.getString(1));
+            rs = stmt.executeQuery("SELECT COUNT(*) FROM items WHERE status = 'UNCLAIMED'");
+            if (rs.next()) lblTotalUnclaimed.setText(rs.getString(1));
+
+            activityTableModel.setRowCount(0);
+            rs = stmt.executeQuery("SELECT date_found, item_name, category, status, location_found FROM items ORDER BY date_found DESC LIMIT 10");
+            while (rs.next()) {
+                activityTableModel.addRow(new Object[]{rs.getDate("date_found"), rs.getString("category") + " - " + rs.getString("item_name"), rs.getString("status"), rs.getString("location_found")});
+            }
+        } catch (Exception ex) { ex.printStackTrace(); }
+    }
+
+    // ==========================================
+    // RESTORED: EXCEL/CSV EXPORT LOGIC
+    // ==========================================
+    private void exportToExcel() {
+        String[] options = {"Past Week", "Past Month", "Past Year", "All Time", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this, "Select timeframe:", "Export Logs",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+
+        if (choice == 4 || choice == JOptionPane.CLOSED_OPTION) return; 
+
+        String dateCondition = "1=1"; 
+        if (choice == 0) dateCondition = "date_found >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK)";
+        else if (choice == 1) dateCondition = "date_found >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
+        else if (choice == 2) dateCondition = "date_found >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)";
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setSelectedFile(new File("UMak_LostAndFound_Logs.csv"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try (FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
+                 Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM items WHERE " + dateCondition + " ORDER BY date_found DESC")) {
+
+                fw.append("Item ID,Item Name,Category,Location Found,Date Found,Sender Name,Sender ID,Status\n");
+                int rowCount = 0; 
+                while (rs.next()) {
+                    fw.append(rs.getString("item_id")).append(",")
+                      .append("\"").append(rs.getString("item_name")).append("\",") 
+                      .append(rs.getString("category")).append(",")
+                      .append("\"").append(rs.getString("location_found")).append("\",")
+                      .append(rs.getDate("date_found").toString()).append(",")
+                      .append("\"").append(rs.getString("sender_name")).append("\",")
+                      .append("\"").append(rs.getString("sender_id")).append("\",")
+                      .append(rs.getString("status")).append("\n");
+                    rowCount++;
+                }
+                JOptionPane.showMessageDialog(this, "Export Successful!\nSaved " + rowCount + " items.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Export Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+}
