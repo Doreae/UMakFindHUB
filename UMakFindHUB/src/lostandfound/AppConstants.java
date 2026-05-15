@@ -3,6 +3,9 @@ package lostandfound;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 public class AppConstants {
     // --- DATABASE CREDENTIALS ---
@@ -44,4 +47,8 @@ public class AppConstants {
             metropolisBold = new Font("SansSerif", Font.BOLD, 14);
         }
     }
-}
+
+    public static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+    }
+	}

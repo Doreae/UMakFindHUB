@@ -137,7 +137,10 @@ public class ProcessClaimPanel extends JPanel {
                 uStmt.setString(1, txtID.getText()); 
                 uStmt.executeUpdate();
                 
+                
                 conn.commit();
+                
+                AuditController.logAction(Session.currentUser, "CLAIM", Integer.parseInt(txtID.getText()), "Released item to " + txtClaimantName.getText());
                 
                 JOptionPane.showMessageDialog(this, "Item successfully released!");
                 mainController.getInventoryPanel().refreshData();

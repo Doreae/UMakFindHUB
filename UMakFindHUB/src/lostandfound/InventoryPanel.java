@@ -279,6 +279,7 @@ public class InventoryPanel extends JPanel {
         int choice = JOptionPane.showOptionDialog(this, popupPanel, "Manage Item #" + itemID, JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
 
         // 6. Handle Interaction Logic
+     // 6. Handle Interaction Logic
         try (Connection c = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS)) {
             String selectedOption = (choice >= 0 && choice < options.length) ? options[choice].toString() : "Cancel";
 
@@ -293,6 +294,11 @@ public class InventoryPanel extends JPanel {
                 s.setString(1, txtName.getText()); s.setString(2, cbCat.getSelectedItem().toString()); s.setString(3, txtLoc.getText());
                 s.setDate(4, java.sql.Date.valueOf(txtDate.getText())); s.setString(5, txtSenderN.getText()); s.setString(6, txtSenderID.getText()); s.setInt(7, Integer.parseInt(itemID));
                 s.executeUpdate();
+                
+                // --- AUDIT LOG ADDED HERE ---
+                // Records that an Admin updated the basic details of an unclaimed item.
+                AuditController.logAction(Session.currentUser, "UPDATE", Integer.parseInt(itemID), "Updated details for unclaimed item: " + txtName.getText());
+                
                 JOptionPane.showMessageDialog(this, "Item changes saved!");
                 refreshData();
 
@@ -310,6 +316,11 @@ public class InventoryPanel extends JPanel {
                     s2.executeUpdate();
 
                     c.commit();
+                    
+                    // --- AUDIT LOG ADDED HERE ---
+                    // Records the manual correction of a claim record (High importance for accountability).
+                    AuditController.logAction(Session.currentUser, "UPDATE", Integer.parseInt(itemID), "Modified existing claim record for: " + txtClaimantName.getText());
+                    
                     JOptionPane.showMessageDialog(this, "Both Item and Claim details updated!");
                     refreshData();
                 } catch (SQLException ex) { c.rollback(); throw ex; }
@@ -322,12 +333,18 @@ public class InventoryPanel extends JPanel {
                         PreparedStatement d = c.prepareStatement("DELETE FROM claims WHERE item_id=?"); d.setInt(1, Integer.parseInt(itemID)); d.executeUpdate();
                         PreparedStatement u = c.prepareStatement("UPDATE items SET status='UNCLAIMED' WHERE item_id=?"); u.setInt(1, Integer.parseInt(itemID)); u.executeUpdate();
                         c.commit();
+                        
+                        // --- AUDIT LOG ADDED HERE ---
+                        // Tracking an 'UNDO' is critical because it changes the status of a released item back to inventory.
+                        AuditController.logAction(Session.currentUser, "UNDO", Integer.parseInt(itemID), "Reversed claim. Item returned to UNCLAIMED status.");
+                        
                         JOptionPane.showMessageDialog(this, "Claim undone. Item returned to inventory.");
                         refreshData();
                     } catch (SQLException ex) { c.rollback(); throw ex; }
                 }
             }
-        } catch (IllegalArgumentException ex) {
+            
+        }  catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(this, "Invalid Date Format! Use YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE);
         } catch (SQLException ex) {
             ex.printStackTrace(); JOptionPane.showMessageDialog(this, "Database Error.", "Error", JOptionPane.ERROR_MESSAGE);

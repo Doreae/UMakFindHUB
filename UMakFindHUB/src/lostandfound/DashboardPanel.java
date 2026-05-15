@@ -54,9 +54,21 @@ public class DashboardPanel extends JPanel {
         btnExport.setFont(AppConstants.metropolisBold);
         btnExport.addActionListener(e -> exportToExcel());
         
-        JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+     // Add this button near your Export to Excel button
+        JButton btnArchive = new JButton("Archive Old Items 🗑️");
+        btnArchive.setFont(AppConstants.metropolisBold.deriveFont(14f));
+        btnArchive.setBackground(new Color(255, 102, 102)); // Light red to show it's a cleanup action
+        btnArchive.setForeground(Color.WHITE);
+        btnArchive.addActionListener(e -> archiveOldItems());
+
+        
+        JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnWrapper.setOpaque(false);
+        
+        // Add Archive first, then Export
+        btnWrapper.add(btnArchive);
         btnWrapper.add(btnExport);
+        
         titlePanel.add(btnWrapper, BorderLayout.EAST);
 
         activityPanel.add(titlePanel, BorderLayout.NORTH);
@@ -112,7 +124,43 @@ public class DashboardPanel extends JPanel {
             }
         } catch (Exception ex) { ex.printStackTrace(); }
     }
+    private void archiveOldItems() {
+        // 1. Confirm with the Admin first
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "This will set all UNCLAIMED items older than 30 days to 'DISPOSED'.\nAre you sure?", 
+            "Confirm Data Cleanup", JOptionPane.YES_NO_OPTION);
 
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        // 2. The SQL Magic
+        String query = "UPDATE items SET status = 'DISPOSED' " +
+                       "WHERE status = 'UNCLAIMED' AND date_found <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+
+        try (Connection conn = AppConstants.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            
+            int rowsAffected = stmt.executeUpdate();
+
+            if (rowsAffected > 0) {
+                // 3. Log the action for the Audit Trail
+                AuditController.logAction(
+                    Session.currentUser, 
+                    "DELETE", 
+                    0, 
+                    "System Cleanup: Archived " + rowsAffected + " expired items to DISPOSED status."
+                );
+
+                JOptionPane.showMessageDialog(this, "Successfully archived " + rowsAffected + " items.");
+                refreshData(); // Refresh the counts on the dashboard
+            } else {
+                JOptionPane.showMessageDialog(this, "No expired items found to archive.");
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Cleanup Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
     // ==========================================
     // RESTORED: EXCEL/CSV EXPORT LOGIC
     // ==========================================
@@ -135,7 +183,8 @@ public class DashboardPanel extends JPanel {
             try (FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                  Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
                  Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT * FROM items WHERE " + dateCondition + " ORDER BY date_found DESC")) {
+                 // FIX: Changed "ORDER BY date_found DESC" to "ORDER BY item_id ASC"
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM items WHERE " + dateCondition + " ORDER BY item_id ASC")) {
 
                 fw.append("Item ID,Item Name,Category,Location Found,Date Found,Sender Name,Sender ID,Status\n");
                 int rowCount = 0; 

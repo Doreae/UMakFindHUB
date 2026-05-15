@@ -117,7 +117,7 @@ public class RegisterPanel extends JPanel {
         gbcSenderNameTxt.gridx = 1; gbcSenderNameTxt.gridy = 5;
         formBox.add(txtSenderName, gbcSenderNameTxt);
 
-        // --- 7. SENDER ID (Restored!) ---
+     // --- 7. SENDER ID (Restored!) ---
         JLabel lblSenderID = new JLabel("Sender's ID:");
         lblSenderID.setFont(AppConstants.metropolisBody);
         GridBagConstraints gbcSenderIDLbl = new GridBagConstraints();
@@ -133,7 +133,24 @@ public class RegisterPanel extends JPanel {
         gbcSenderIDTxt.insets = new Insets(10, 10, 10, 10);
         gbcSenderIDTxt.gridx = 1; gbcSenderIDTxt.gridy = 6;
         formBox.add(txtSenderID, gbcSenderIDTxt);
-
+        
+        ((javax.swing.text.AbstractDocument) txtSenderID.getDocument()).setDocumentFilter(new javax.swing.text.DocumentFilter() {
+            @Override
+            public void replace(FilterBypass fb, int offset, int length, String text, javax.swing.text.AttributeSet attrs) throws javax.swing.text.BadLocationException {
+                // Check what the string will look like after they type
+                int currentLength = fb.getDocument().getLength();
+                int projectedLength = currentLength - length + text.length();
+                
+                // Only allow letters and numbers, and cap it at 10 characters maximum
+                if (projectedLength <= 10 && text.matches("[a-zA-Z0-9]*")) {
+                    // super.replace applies the text, and .toUpperCase() makes it look clean!
+                    super.replace(fb, offset, length, text.toUpperCase(), attrs);
+                } else {
+                    // Play a little error sound if they try to type symbols or go over 10 chars
+                    Toolkit.getDefaultToolkit().beep(); 
+                }
+            }
+        });
         
         // --- 8. SAVE BUTTON ---
         JButton btnSave = new JButton("SAVE");
@@ -163,7 +180,7 @@ public class RegisterPanel extends JPanel {
             String location = txtLocation.getText();
             String dateStr = txtDate.getText();
             String senderName = txtSenderName.getText();
-            String senderId = txtSenderID.getText();
+            String senderId = txtSenderID.getText().trim();
             
             
             if(name.isEmpty() || location.isEmpty() || dateStr.isEmpty()) {
@@ -171,6 +188,15 @@ public class RegisterPanel extends JPanel {
                 return;
             }
 
+
+         if (!senderId.matches("^[A-Z][0-9]{8,9}$")) {
+             JOptionPane.showMessageDialog(this, 
+                 "Invalid ID Format! The Sender ID must start with a letter followed by 8 or 9 numbers (e.g., A12345678).", 
+                 "Validation Error", 
+                 JOptionPane.ERROR_MESSAGE);
+             return; 
+         }
+         
             try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
                  PreparedStatement stmt = conn.prepareStatement("INSERT INTO items (item_name, category, location_found, date_found, status, sender_name, sender_id) VALUES (?, ?, ?, ?, 'UNCLAIMED', ?, ?)")) {
                 
@@ -182,6 +208,8 @@ public class RegisterPanel extends JPanel {
                 stmt.setString(6, senderId);   
                 
                 stmt.executeUpdate();
+                
+                AuditController.logAction(Session.currentUser, "REGISTER", 0, "Registered a new " + category + ": " + name);
                 
                 JOptionPane.showMessageDialog(this, "Item '" + name + "' added successfully!");
                 txtItemName.setText(""); txtLocation.setText(""); txtDate.setText("");
