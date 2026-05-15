@@ -42,7 +42,7 @@ public class InventoryPanel extends JPanel {
         topPanel.add(cbCategoryFilter);
 
         topPanel.add(new JLabel("Status:"));
-        cbStatus = new JComboBox<>(new String[]{"All", "UNCLAIMED", "CLAIMED"});
+        cbStatus = new JComboBox<>(new String[]{"All", "UNCLAIMED", "CLAIMED", "DISPOSED"});
         topPanel.add(cbStatus);
 
         txtDateFrom = new JTextField(10);
@@ -136,27 +136,63 @@ public class InventoryPanel extends JPanel {
 
     // Fetches data for the table based on active filters
     public void refreshData() {
-        try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS)) {
+        try (Connection conn = AppConstants.getConnection()) {
             tableModel.setRowCount(0);
+            
             String keyword = txtSearch.getText().trim();
             String cat = cbCategoryFilter.getSelectedItem().toString();
             String stat = cbStatus.getSelectedItem().toString();
             
+            // Use ? placeholders to prevent SQL Injection
             StringBuilder sql = new StringBuilder("SELECT * FROM items WHERE 1=1");
-            if (!keyword.isEmpty() && !keyword.equals("Search")) sql.append(" AND (item_name LIKE '%").append(keyword).append("%' OR location_found LIKE '%").append(keyword).append("%')");
-            if (!cat.equals("All")) sql.append(" AND category='").append(cat).append("'");
-            if (!stat.equals("All")) sql.append(" AND status='").append(stat).append("'");
-            if (!txtDateFrom.getText().isEmpty()) sql.append(" AND date_found >= '").append(txtDateFrom.getText()).append("'");
-            if (!txtDateTo.getText().isEmpty()) sql.append(" AND date_found <= '").append(txtDateTo.getText()).append("'");
+            if (!keyword.isEmpty() && !keyword.equals("Search")) {
+                sql.append(" AND (item_name LIKE ? OR location_found LIKE ?)");
+            }
+            if (!cat.equals("All")) sql.append(" AND category = ?");
+            if (!stat.equals("All")) sql.append(" AND status = ?");
+            if (!txtDateFrom.getText().isEmpty()) sql.append(" AND date_found >= ?");
+            if (!txtDateTo.getText().isEmpty()) sql.append(" AND date_found <= ?");
+            
             sql.append(" ORDER BY item_id DESC");
 
-            ResultSet rs = conn.createStatement().executeQuery(sql.toString());
+            PreparedStatement stmt = conn.prepareStatement(sql.toString());
+            int paramIndex = 1;
+
+            // Fill in the ? placeholders in the exact order they were added
+            if (!keyword.isEmpty() && !keyword.equals("Search")) {
+                stmt.setString(paramIndex++, "%" + keyword + "%");
+                stmt.setString(paramIndex++, "%" + keyword + "%");
+            }
+            if (!cat.equals("All")) stmt.setString(paramIndex++, cat);
+            if (!stat.equals("All")) stmt.setString(paramIndex++, stat); // This handles DISPOSED automatically
+            if (!txtDateFrom.getText().isEmpty()) stmt.setString(paramIndex++, txtDateFrom.getText());
+            if (!txtDateTo.getText().isEmpty()) stmt.setString(paramIndex++, txtDateTo.getText());
+
+            ResultSet rs = stmt.executeQuery();
             while(rs.next()) {
                 String status = rs.getString("status");
-                String actionText = status.equals("UNCLAIMED") ? "[PROCESS CLAIM]" : "VIEW DETAILS";
-                tableModel.addRow(new Object[]{rs.getString("item_id"), rs.getString("item_name"), rs.getString("category"), rs.getString("location_found"), rs.getString("date_found"), status, actionText});
+                
+                // Logic for Action Text
+                String actionText = "VIEW DETAILS"; 
+                if (status.equals("UNCLAIMED")) {
+                    actionText = "[PROCESS CLAIM]";
+                } else if (status.equals("DISPOSED")) {
+                    actionText = "VIEW RECORD"; // Archived items don't need claiming
+                }
+
+                tableModel.addRow(new Object[]{
+                    rs.getString("item_id"), 
+                    rs.getString("item_name"), 
+                    rs.getString("category"), 
+                    rs.getString("location_found"), 
+                    rs.getString("date_found"), 
+                    status, 
+                    actionText
+                });
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+        }
     }
 
     // =================================================================================

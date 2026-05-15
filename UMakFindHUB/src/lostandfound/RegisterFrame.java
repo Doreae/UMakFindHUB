@@ -6,6 +6,9 @@ import java.sql.*;
 
 public class RegisterFrame extends JFrame {
 
+    // --- NEW: THE SECRET MASTER KEY ---
+    private static final String MASTER_KEY = "FINDHUB-ADMIN-2026";
+
     public RegisterFrame() {
         AppConstants.initFonts(); // Load custom fonts
         
@@ -25,27 +28,31 @@ public class RegisterFrame extends JFrame {
         // --- 2. BACKGROUND PANEL ---
         Image mainBgImage = new ImageIcon("src/lostandfound/images/bg.png").getImage();
         JPanel bgPanel = new JPanel(new GridBagLayout()) {
-            /**
-			 * 
-			 */
-			private static final long serialVersionUID = 1L;
-
-			@Override protected void paintComponent(Graphics g) {
+            private static final long serialVersionUID = 1L;
+            @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 if (mainBgImage != null) g.drawImage(mainBgImage, 0, 0, getWidth(), getHeight(), this);
             }
         };
         bgPanel.setBackground(new Color(21, 35, 75));
 
-        // --- 3. FROSTED GLASS BOX (Fixed Padding!) ---
-        JPanel registerBox = new JPanel(new GridBagLayout());
+        // --- 3. FROSTED GLASS BOX ---
+     // --- 3. FROSTED GLASS BOX (FIXED FOR TRANSLUCENCY) ---
+        JPanel registerBox = new JPanel(new GridBagLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                // This forces Java to paint the transparent color properly without stacking
+                g.setColor(getBackground());
+                g.fillRect(0, 0, getWidth(), getHeight());
+                super.paintComponent(g);
+            }
+        };
         registerBox.setBackground(new Color(133, 179, 235, 180));
-        // REDUCED PADDING to make the box tighter around the text fields
         registerBox.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30)); 
-        registerBox.setOpaque(true);
+        registerBox.setOpaque(false); // MUST BE FALSE for transparent backgrounds!
 
         // ==========================================
-        // WINDOWBUILDER SAFE UI COMPONENTS
+        // UI COMPONENTS
         // ==========================================
         
         // Title
@@ -68,7 +75,7 @@ public class RegisterFrame extends JFrame {
         txtUser.setFont(AppConstants.metropolisBody.deriveFont(16f));
         GridBagConstraints gbc_txtUser = new GridBagConstraints();
         gbc_txtUser.gridx = 1; gbc_txtUser.gridy = 1;
-        gbc_txtUser.fill = GridBagConstraints.HORIZONTAL; // FIX: Make it stretch!
+        gbc_txtUser.fill = GridBagConstraints.HORIZONTAL; 
         gbc_txtUser.insets = new Insets(10, 10, 10, 10);
         registerBox.add(txtUser, gbc_txtUser);
 
@@ -84,7 +91,7 @@ public class RegisterFrame extends JFrame {
         txtPass.setFont(AppConstants.metropolisBody.deriveFont(16f));
         GridBagConstraints gbc_txtPass = new GridBagConstraints();
         gbc_txtPass.gridx = 1; gbc_txtPass.gridy = 2;
-        gbc_txtPass.fill = GridBagConstraints.HORIZONTAL; // FIX: Make it stretch!
+        gbc_txtPass.fill = GridBagConstraints.HORIZONTAL; 
         gbc_txtPass.insets = new Insets(10, 10, 10, 10);
         registerBox.add(txtPass, gbc_txtPass);
 
@@ -100,7 +107,7 @@ public class RegisterFrame extends JFrame {
         txtConfirmPass.setFont(AppConstants.metropolisBody.deriveFont(16f));
         GridBagConstraints gbc_txtConfirmPass = new GridBagConstraints();
         gbc_txtConfirmPass.gridx = 1; gbc_txtConfirmPass.gridy = 3;
-        gbc_txtConfirmPass.fill = GridBagConstraints.HORIZONTAL; // FIX: Make it stretch!
+        gbc_txtConfirmPass.fill = GridBagConstraints.HORIZONTAL; 
         gbc_txtConfirmPass.insets = new Insets(10, 10, 10, 10);
         registerBox.add(txtConfirmPass, gbc_txtConfirmPass);
 
@@ -119,13 +126,34 @@ public class RegisterFrame extends JFrame {
         gbc_cbRole.insets = new Insets(10, 10, 10, 10);
         registerBox.add(cbRole, gbc_cbRole);
 
-        // Show Password Checkbox
+        // ==========================================
+        // NEW: MASTER KEY FIELDS (Hidden by default)
+        // ==========================================
+        JLabel lblMasterKey = new JLabel("Master Key:");
+        lblMasterKey.setFont(AppConstants.metropolisBold.deriveFont(16f));
+        lblMasterKey.setForeground(new Color(180, 0, 0)); // Dark red to signal security
+        GridBagConstraints gbc_lblMasterKey = new GridBagConstraints();
+        gbc_lblMasterKey.gridx = 0; gbc_lblMasterKey.gridy = 5; gbc_lblMasterKey.anchor = GridBagConstraints.EAST;
+        gbc_lblMasterKey.insets = new Insets(10, 10, 10, 10);
+        lblMasterKey.setVisible(false);
+        registerBox.add(lblMasterKey, gbc_lblMasterKey);
+
+        JPasswordField txtMasterKey = new JPasswordField(15);
+        txtMasterKey.setFont(AppConstants.metropolisBody.deriveFont(16f));
+        GridBagConstraints gbc_txtMasterKey = new GridBagConstraints();
+        gbc_txtMasterKey.gridx = 1; gbc_txtMasterKey.gridy = 5;
+        gbc_txtMasterKey.fill = GridBagConstraints.HORIZONTAL;
+        gbc_txtMasterKey.insets = new Insets(10, 10, 10, 10);
+        txtMasterKey.setVisible(false);
+        registerBox.add(txtMasterKey, gbc_txtMasterKey);
+
+        // Show Password Checkbox (Moved to GridY 6)
         JCheckBox chkShowPass = new JCheckBox("Show Passwords");
         chkShowPass.setFont(AppConstants.metropolisBody.deriveFont(12f));
         chkShowPass.setOpaque(false); 
         chkShowPass.setFocusPainted(false);
         GridBagConstraints gbc_chkShowPass = new GridBagConstraints();
-        gbc_chkShowPass.gridx = 1; gbc_chkShowPass.gridy = 5; 
+        gbc_chkShowPass.gridx = 1; gbc_chkShowPass.gridy = 6; 
         gbc_chkShowPass.anchor = GridBagConstraints.WEST; 
         gbc_chkShowPass.insets = new Insets(0, 10, 10, 10);
         registerBox.add(chkShowPass, gbc_chkShowPass);
@@ -134,26 +162,27 @@ public class RegisterFrame extends JFrame {
             char echo = chkShowPass.isSelected() ? (char) 0 : '•';
             txtPass.setEchoChar(echo);
             txtConfirmPass.setEchoChar(echo);
+            txtMasterKey.setEchoChar(echo); // Added master key to the show logic!
         });
 
-        // Register Button
+        // Register Button (Moved to GridY 7)
         JButton btnRegister = new JButton("REGISTER");
         btnRegister.setFont(AppConstants.metropolisBold.deriveFont(18f));
         btnRegister.setBackground(new Color(46, 204, 113)); 
         btnRegister.setForeground(Color.BLACK);
         GridBagConstraints gbc_btnRegister = new GridBagConstraints();
-        gbc_btnRegister.gridx = 0; gbc_btnRegister.gridy = 6; 
+        gbc_btnRegister.gridx = 0; gbc_btnRegister.gridy = 7; 
         gbc_btnRegister.gridwidth = 2;
         gbc_btnRegister.fill = GridBagConstraints.HORIZONTAL;
         gbc_btnRegister.insets = new Insets(20, 10, 10, 10);
         registerBox.add(btnRegister, gbc_btnRegister);
 
-        // Back to Login Button
+        // Back to Login Button (Moved to GridY 8)
         JButton btnBack = new JButton("Back to Login");
         btnBack.setFont(AppConstants.metropolisBold.deriveFont(14f));
         btnBack.setBackground(new Color(200, 200, 200));
         GridBagConstraints gbc_btnBack = new GridBagConstraints();
-        gbc_btnBack.gridx = 0; gbc_btnBack.gridy = 7; 
+        gbc_btnBack.gridx = 0; gbc_btnBack.gridy = 8; 
         gbc_btnBack.gridwidth = 2;
         gbc_btnBack.fill = GridBagConstraints.HORIZONTAL;
         gbc_btnBack.insets = new Insets(5, 10, 10, 10);
@@ -161,6 +190,24 @@ public class RegisterFrame extends JFrame {
 
         bgPanel.add(registerBox);
         add(bgPanel, BorderLayout.CENTER);
+
+        // ==========================================
+        // DYNAMIC UI LOGIC (Show/Hide Master Key)
+        // ==========================================
+        cbRole.addActionListener(e -> {
+            boolean isAdmin = cbRole.getSelectedItem().toString().equals("Admin");
+            
+            lblMasterKey.setVisible(isAdmin);
+            txtMasterKey.setVisible(isAdmin);
+            
+            if (!isAdmin) {
+                txtMasterKey.setText(""); // Clear it if they switch back to Staff
+            }
+            
+            // Re-render the box so the layout adjusts smoothly
+            registerBox.revalidate();
+            registerBox.repaint();
+        });
 
         // ==========================================
         // DATABASE LOGIC
@@ -177,37 +224,42 @@ public class RegisterFrame extends JFrame {
             String confirmPass = new String(txtConfirmPass.getPassword());
             String role = cbRole.getSelectedItem().toString();
 
-            
-            
+            // 1. Basic Validation
+            if (user.isEmpty() || pass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Username and Password cannot be empty!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!pass.equals(confirmPass)) {
+                JOptionPane.showMessageDialog(this, "Passwords do not match!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-     // 1. Basic Validation (Empty fields or passwords don't match)
-        if (user.isEmpty() || pass.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Username and Password cannot be empty!", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        if (!pass.equals(confirmPass)) {
-            JOptionPane.showMessageDialog(this, "Passwords do not match!", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+            // 2. Password Strength Validation
+            if (pass.length() <= 6 || !pass.matches(".*[A-Z].*") || !pass.matches(".*[^a-zA-Z0-9].*")) {
+                JOptionPane.showMessageDialog(this, 
+                    "Weak Password! Please ensure your password meets these requirements:\n" +
+                    "• Must be more than 6 characters long\n" +
+                    "• Must contain at least 1 uppercase letter\n" +
+                    "• Must contain at least 1 special character (e.g., !, @, #, $)", 
+                    "Security Warning", 
+                    JOptionPane.WARNING_MESSAGE);
+                return; 
+            }
 
-        // ==========================================
-        // NEW: PASSWORD STRENGTH VALIDATION
-        // ==========================================
-        // .length() <= 6        -> Blocks 6 or fewer characters
-        // !pass.matches(".*[A-Z].*") -> Blocks if there is NO uppercase letter anywhere
-        // !pass.matches(".*[^a-zA-Z0-9].*") -> Blocks if there are NO special characters (looks for anything that is NOT a letter or number)
-        
-        if (pass.length() <= 6 || !pass.matches(".*[A-Z].*") || !pass.matches(".*[^a-zA-Z0-9].*")) {
-            JOptionPane.showMessageDialog(this, 
-                "Weak Password! Please ensure your password meets these requirements:\n" +
-                "• Must be more than 6 characters long\n" +
-                "• Must contain at least 1 uppercase letter\n" +
-                "• Must contain at least 1 special character (e.g., !, @, #, $)", 
-                "Security Warning", 
-                JOptionPane.WARNING_MESSAGE);
-            return; // Stops the code so it doesn't save the weak password
-        }
-        // ==========================================
+            // ==========================================
+            // NEW: MASTER KEY VALIDATION
+            // ==========================================
+            if (role.equals("Admin")) {
+                String enteredKey = new String(txtMasterKey.getPassword());
+                if (!enteredKey.equals(MASTER_KEY)) {
+                    JOptionPane.showMessageDialog(this, 
+                        "INVALID MASTER KEY!\nYou are not authorized to create an Admin account.", 
+                        "Security Alert", JOptionPane.ERROR_MESSAGE);
+                    return; // Stops execution right here
+                }
+            }
+
+            // 3. Database Execution
             try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS)) {
                 
                 PreparedStatement checkStmt = conn.prepareStatement("SELECT username FROM users WHERE username = ?");
