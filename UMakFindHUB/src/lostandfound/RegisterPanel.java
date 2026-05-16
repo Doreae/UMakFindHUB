@@ -189,13 +189,15 @@ public class RegisterPanel extends JPanel {
             }
 
 
-         if (!senderId.matches("^[A-Z][0-9]{8,9}$")) {
-             JOptionPane.showMessageDialog(this, 
-                 "Invalid ID Format! The Sender ID must start with a letter followed by 8 or 9 numbers (e.g., A12345678).", 
-                 "Validation Error", 
-                 JOptionPane.ERROR_MESSAGE);
-             return; 
-         }
+            if (!senderId.matches("^[A-Za-z0-9]{1,9}$")) {
+                JOptionPane.showMessageDialog(
+                    this,
+                    "Invalid ID Format! The Sender ID must be letters and/or digits, up to 9 characters.",
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
          
             try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
                  PreparedStatement stmt = conn.prepareStatement("INSERT INTO items (item_name, category, location_found, date_found, status, sender_name, sender_id) VALUES (?, ?, ?, ?, 'UNCLAIMED', ?, ?)")) {
