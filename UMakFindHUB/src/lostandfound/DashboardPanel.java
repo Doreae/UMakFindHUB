@@ -214,6 +214,7 @@ public class DashboardPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Cleanup Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+    
     // ==========================================
     // RESTORED: EXCEL/CSV EXPORT LOGIC
     // ==========================================
