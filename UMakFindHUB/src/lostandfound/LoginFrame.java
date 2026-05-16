@@ -20,6 +20,10 @@ public class LoginFrame extends JFrame {
 
         // --- 1. HEADER ---
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15));
+        try {
+            ImageIcon logoIcon = new ImageIcon(new ImageIcon("src/lostandfound/images/umak_logo.png").getImage().getScaledInstance(70, 70, Image.SCALE_SMOOTH));
+            headerPanel.add(new JLabel(logoIcon));
+        } catch (Exception e) { System.out.println("Logo missing."); }
         headerPanel.setBackground(new Color(133, 179, 235));
         headerPanel.add(new JLabel("<html><div style='text-align: center; color: #1a1a1a;'><span style='font-size: 26px; font-family: Marcellus;'>University Of Makati</span><br><span style='font-size: 14px; font-family: Metropolis;'>Lost & Found Inventory System</span></div></html>"));
         getContentPane().add(headerPanel, BorderLayout.NORTH);

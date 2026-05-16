@@ -10,8 +10,8 @@ import java.sql.SQLException;
 public class AppConstants {
     // --- DATABASE CREDENTIALS ---
     public static final String DB_URL = "jdbc:mysql://localhost:3306/umak_lostfound_db";
-    public static final String DB_USER = "root";
-    public static final String DB_PASS = "";
+    public static final String DB_USER = "rfam";
+    public static final String DB_PASS = "RFAMILY!123#";
 
     // --- GLOBAL FONTS ---
     public static Font marcellusHeader;
