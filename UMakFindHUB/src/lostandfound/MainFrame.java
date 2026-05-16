@@ -1,7 +1,12 @@
 package lostandfound;
 
 import javax.swing.*;
+import javax.swing.Timer; // Explicitly using Swing Timer
 import java.awt.*;
+import java.awt.AWTEvent;
+import java.awt.event.AWTEventListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 
 public class MainFrame extends JFrame {
     private CardLayout cardLayout;
@@ -14,6 +19,10 @@ public class MainFrame extends JFrame {
     private ProcessClaimPanel processClaimPanel;
     private AuditLogPanel auditLogPanel; // Added reference for the new panel
 
+    // --- TIMEOUT SECURITY VARIABLES ---
+    private Timer inactivityTimer;
+    private AWTEventListener globalInputListener;
+
     public MainFrame(String role) {
         this.currentUserRole = role;
         setTitle("UMak Lost & Found - Logged in as " + role);
@@ -24,7 +33,6 @@ public class MainFrame extends JFrame {
         // 2. This is your "Fallback" size in case the user 'restores' the window
         setSize(1280, 800); 
         
-   
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
@@ -110,15 +118,27 @@ public class MainFrame extends JFrame {
         // Audit Logic: Refresh the logs whenever the button is clicked
         btnAudit.addActionListener(e -> { auditLogPanel.refreshLogs(); cardLayout.show(mainContentPanel, "AUDIT_LOGS"); });
         
+        // --- UPDATED LOGOUT LOGIC ---
         btnLogout.addActionListener(e -> {
-            if (JOptionPane.showConfirmDialog(this, "Logout?", "Logout", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
-                dispose(); new LoginFrame().setVisible(true);
+            if (JOptionPane.showConfirmDialog(this, "Are you sure you want to log out?", "Logout", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                
+                // 1. Stop the security background timer
+                if (inactivityTimer != null) inactivityTimer.stop();
+                Toolkit.getDefaultToolkit().removeAWTEventListener(globalInputListener);
+                
+                // 2. Clear the active session
+                Session.currentUser = "Unknown";
+                
+                // 3. Return to login screen
+                dispose(); 
+                new LoginFrame().setVisible(true);
             }
         });
         
         dashboardPanel.refreshData(); 
         
-        
+        // --- INITIALIZE TIMEOUT ---
+        setupIdleTimeout();
     }
 
     public void switchToCard(String cardName) { cardLayout.show(mainContentPanel, cardName); }
@@ -136,5 +156,58 @@ public class MainFrame extends JFrame {
         btn.setPreferredSize(new Dimension(200, 90)); btn.setMaximumSize(new Dimension(200, 90));
         btn.setBackground(new Color(133, 179, 235)); btn.setForeground(Color.BLACK);
         return btn;
+    }
+
+    // ==========================================
+    // IDLE TIMEOUT SECURITY FEATURE
+    // ==========================================
+    private void setupIdleTimeout() {
+        // 10 minutes in milliseconds (10 * 60 * 1000)
+        int timeoutInMilliseconds = 600000; 
+
+        // 1. Define what happens when the timer hits zero
+        inactivityTimer = new Timer(timeoutInMilliseconds, e -> performAutoLogout());
+        inactivityTimer.setRepeats(false); // Only trigger once
+
+        // 2. Create a global listener that watches for ANY mouse or keyboard action
+        globalInputListener = new AWTEventListener() {
+            @Override
+            public void eventDispatched(AWTEvent event) {
+                if (event instanceof MouseEvent || event instanceof KeyEvent) {
+                    // If the user moves the mouse or presses a key, reset the countdown!
+                    if (inactivityTimer != null && inactivityTimer.isRunning()) {
+                        inactivityTimer.restart();
+                    }
+                }
+            }
+        };
+
+        // 3. Attach the global listener to the Java Toolkit
+        Toolkit.getDefaultToolkit().addAWTEventListener(
+            globalInputListener,
+            AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK
+        );
+
+        // 4. Start the countdown
+        inactivityTimer.start();
+    }
+
+    private void performAutoLogout() {
+        // Stop the timer and remove the global listener to prevent memory leaks
+        if (inactivityTimer != null) inactivityTimer.stop();
+        Toolkit.getDefaultToolkit().removeAWTEventListener(globalInputListener);
+
+        // Clear the session security variable
+        Session.currentUser = "Unknown";
+
+        // Close the dashboard and open the login screen
+        this.dispose(); 
+        new LoginFrame().setVisible(true);
+
+        // Alert the user that they were logged out
+        JOptionPane.showMessageDialog(null, 
+            "For your security, you have been automatically logged out due to 10 minutes of inactivity.", 
+            "Session Expired", 
+            JOptionPane.WARNING_MESSAGE);
     }
 }
