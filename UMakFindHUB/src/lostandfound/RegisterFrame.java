@@ -260,6 +260,9 @@ public class RegisterFrame extends JFrame {
             }
 
             // 3. Database Execution
+         // ... inside btnRegister.addActionListener ...
+            
+            // 3. Database Execution
             try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS)) {
                 
                 PreparedStatement checkStmt = conn.prepareStatement("SELECT username FROM users WHERE username = ?");
@@ -270,9 +273,12 @@ public class RegisterFrame extends JFrame {
                     return;
                 }
 
+                // --- ADD THIS LINE: Hash the password before saving ---
+                String hashedPassword = SecurityUtils.hashPassword(pass);
+
                 PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
                 insertStmt.setString(1, user);
-                insertStmt.setString(2, pass);
+                insertStmt.setString(2, hashedPassword); // <-- Save the hash, NOT the raw 'pass' variable
                 insertStmt.setString(3, role);
                 insertStmt.executeUpdate();
 
@@ -281,6 +287,7 @@ public class RegisterFrame extends JFrame {
                 new LoginFrame().setVisible(true);
 
             } catch (SQLException ex) {
+                // ... existing catch block ... catch (SQLException ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }

@@ -169,7 +169,7 @@ public class LoginFrame extends JFrame {
                 
                 if (rs.next()) {
                     // User exists! Let's pull their security data from the database
-                    String dbPass = rs.getString("password");
+                    String dbPassHash = rs.getString("password"); // This is now a hash, not plain text
                     String role = rs.getString("role");
                     int failedAttempts = rs.getInt("failed_attempts");
                     Timestamp lockoutTime = rs.getTimestamp("lockout_time");
@@ -178,20 +178,18 @@ public class LoginFrame extends JFrame {
                     // SECURITY CHECK 1: IS THE ACCOUNT LOCKED?
                     // ==========================================
                     if (lockoutTime != null && lockoutTime.getTime() > System.currentTimeMillis()) {
-                        // Calculate how many minutes are left
-                        long remainingMillis = lockoutTime.getTime() - System.currentTimeMillis();
-                        long remainingMinutes = (remainingMillis / 1000) / 60;
-                        
-                        JOptionPane.showMessageDialog(this, 
-                            "Account locked due to multiple failed attempts.\nPlease try again in " + (remainingMinutes + 1) + " minutes.", 
-                            "Security Lockout", JOptionPane.ERROR_MESSAGE);
-                        return; // Stop the code right here, don't let them log in!
+                        // ... existing lockout logic ...
+                        return; 
                     }
 
                     // ==========================================
-                    // SECURITY CHECK 2: DOES THE PASSWORD MATCH?
+                    // SECURITY CHECK 2: DOES THE HASH MATCH?
                     // ==========================================
-                    if (passwordInput.equals(dbPass)) {
+                    
+                    // --- ADD THIS LINE: Hash the user's input to compare it ---
+                    String hashedInput = SecurityUtils.hashPassword(passwordInput);
+                    
+                    if (hashedInput.equals(dbPassHash)) { // Compare hash against hash
                         // SUCCESS! 
                         
                         // Reset their failed attempts back to 0 in the database
@@ -200,12 +198,13 @@ public class LoginFrame extends JFrame {
                             resetStmt.executeUpdate();
                         }
 
-                        // Your original success logic:
                         Session.currentUser = usernameInput; 
                         dispose(); 
-                        new MainFrame(role).setVisible(true); // Passed the role exactly how you had it!
+                        new MainFrame(role).setVisible(true); 
                         
                     } else {
+                        // FAILURE! Wrong Password.
+                        // ... existing failure logic ... else {
                         // FAILURE! Wrong Password.
                         failedAttempts++; // Add 1 to their strike count
                         
