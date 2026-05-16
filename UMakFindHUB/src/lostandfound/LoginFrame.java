@@ -197,8 +197,10 @@ public class LoginFrame extends JFrame {
                             resetStmt.setString(1, usernameInput);
                             resetStmt.executeUpdate();
                         }
-
+                        
                         Session.currentUser = usernameInput; 
+                        Session.currentUser = role.trim();
+
                         dispose(); 
                         new MainFrame(role).setVisible(true); 
                         
