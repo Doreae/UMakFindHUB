@@ -165,14 +165,27 @@ public class DashboardPanel extends JPanel {
     }
     
     private void archiveOldItems() {
-        // 1. Confirm with the Admin first
+        // ==========================================
+        // 1. BACKEND SECURITY CHECK (Defense in Depth)
+        // ==========================================
+        if (!"Admin".equalsIgnoreCase(Session.currentUser)) {
+            JOptionPane.showMessageDialog(this, 
+                "Unauthorized Action!\nOnly System Administrators can archive inventory data.", 
+                "Access Denied", JOptionPane.ERROR_MESSAGE);
+            
+            // Log the unauthorized attempt to the Audit Trail
+            AuditController.logAction(Session.currentUser, "FAILED_ACCESS", 0, "Attempted to archive items without Admin privileges.");
+            return; // Stops the code dead in its tracks
+        }
+
+        // 2. Confirm with the Admin first
         int confirm = JOptionPane.showConfirmDialog(this, 
             "This will set all UNCLAIMED items older than 30 days to 'DISPOSED'.\nAre you sure?", 
             "Confirm Data Cleanup", JOptionPane.YES_NO_OPTION);
 
         if (confirm != JOptionPane.YES_OPTION) return;
 
-        // 2. The SQL Magic
+        // 3. The SQL Magic
         String query = "UPDATE items SET status = 'DISPOSED' " +
                        "WHERE status = 'UNCLAIMED' AND date_found <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
 
@@ -182,7 +195,7 @@ public class DashboardPanel extends JPanel {
             int rowsAffected = stmt.executeUpdate();
 
             if (rowsAffected > 0) {
-                // 3. Log the action for the Audit Trail
+                // 4. Log the action for the Audit Trail
                 AuditController.logAction(
                     Session.currentUser, 
                     "DELETE", 
@@ -191,7 +204,7 @@ public class DashboardPanel extends JPanel {
                 );
 
                 JOptionPane.showMessageDialog(this, "Successfully archived " + rowsAffected + " items.");
-                refreshData(); // Refresh the counts on the dashboard (This will automatically clear the red alert text!)
+                refreshData(); // Refresh the counts on the dashboard 
             } else {
                 JOptionPane.showMessageDialog(this, "No expired items found to archive.");
             }
@@ -201,7 +214,6 @@ public class DashboardPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Cleanup Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-    
     // ==========================================
     // RESTORED: EXCEL/CSV EXPORT LOGIC
     // ==========================================
