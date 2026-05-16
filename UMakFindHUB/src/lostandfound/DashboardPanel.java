@@ -141,17 +141,33 @@ public class DashboardPanel extends JPanel {
             if (rs.next()) lblTotalUnclaimed.setText(rs.getString(1));
 
             // ==========================================
-            // NEW: ACTIONABLE ALERT LOGIC
+            // 1. FETCH CURRENT USER'S ROLE
+            // ==========================================
+            String userRole = "Staff"; // Default to lowest privilege
+            String roleQuery = "SELECT role FROM users WHERE username = ?";
+            try (PreparedStatement roleStmt = conn.prepareStatement(roleQuery)) {
+                roleStmt.setString(1, Session.currentUser);
+                try (ResultSet roleRs = roleStmt.executeQuery()) {
+                    if (roleRs.next()) {
+                        userRole = roleRs.getString("role");
+                    }
+                }
+            }
+
+            // ==========================================
+            // 2. SMART ALERT LOGIC (ADMIN ONLY)
             // ==========================================
             String alertQuery = "SELECT COUNT(*) FROM items WHERE status = 'UNCLAIMED' AND date_found <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
             rs = stmt.executeQuery(alertQuery);
             if (rs.next()) {
                 int expiredCount = rs.getInt(1);
-                if (expiredCount > 0) {
+                
+                // Show ONLY if there are expired items AND the user is an Admin
+                if (expiredCount > 0 && "Admin".equalsIgnoreCase(userRole)) {
                     lblDisposalAlert.setText("🚨 ACTION REQUIRED: [ " + expiredCount + " ] Items are overdue for Disposal.");
-                    lblDisposalAlert.setVisible(true); // Show the alert!
+                    lblDisposalAlert.setVisible(true); 
                 } else {
-                    lblDisposalAlert.setVisible(false); // Hide it if everything is clean
+                    lblDisposalAlert.setVisible(false); 
                 }
             }
 
@@ -159,9 +175,16 @@ public class DashboardPanel extends JPanel {
             activityTableModel.setRowCount(0);
             rs = stmt.executeQuery("SELECT date_found, item_name, category, status, location_found FROM items ORDER BY date_found DESC LIMIT 10");
             while (rs.next()) {
-                activityTableModel.addRow(new Object[]{rs.getDate("date_found"), rs.getString("category") + " - " + rs.getString("item_name"), rs.getString("status"), rs.getString("location_found")});
+                activityTableModel.addRow(new Object[]{
+                    rs.getDate("date_found"), 
+                    rs.getString("category") + " - " + rs.getString("item_name"), 
+                    rs.getString("status"), 
+                    rs.getString("location_found")
+                });
             }
-        } catch (Exception ex) { ex.printStackTrace(); }
+        } catch (Exception ex) { 
+            ex.printStackTrace(); 
+        }
     }
     
     private void archiveOldItems() {
