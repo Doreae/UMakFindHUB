@@ -11,11 +11,23 @@ public class DashboardPanel extends JPanel {
     private JLabel lblTotalFound, lblTotalClaimed, lblTotalUnclaimed;
     private DefaultTableModel activityTableModel;
     private Image mainBgImage; // Stores the campus background
+    
+    // NEW: The Smart Alert Label
+    private JLabel lblDisposalAlert; 
 
     public DashboardPanel() {
         mainBgImage = new ImageIcon("src/lostandfound/images/bg.png").getImage();
         setLayout(new BorderLayout(0, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // ==========================================
+        // NEW: SMART ALERT SETUP
+        // ==========================================
+        lblDisposalAlert = new JLabel("");
+        lblDisposalAlert.setFont(AppConstants.metropolisBold.deriveFont(16f));
+        lblDisposalAlert.setForeground(new Color(255, 50, 50)); // Bright Red for urgency
+        lblDisposalAlert.setHorizontalAlignment(SwingConstants.CENTER);
+        lblDisposalAlert.setVisible(false); // Hidden by default until data is checked
 
         // ==========================================
         // RESTORED: STAT CARDS (Transparent Background)
@@ -30,8 +42,15 @@ public class DashboardPanel extends JPanel {
         statsContainer.add(createStatCard("Total Found Items", lblTotalFound));
         statsContainer.add(createStatCard("Successfully Claimed", lblTotalClaimed));
         statsContainer.add(createStatCard("Unclaimed Items", lblTotalUnclaimed));
-        add(statsContainer, BorderLayout.NORTH);
+        
+        // Wrap the Alert and the Stats together at the top
+        JPanel topWrapper = new JPanel(new BorderLayout(0, 10));
+        topWrapper.setOpaque(false);
+        topWrapper.add(lblDisposalAlert, BorderLayout.NORTH);
+        topWrapper.add(statsContainer, BorderLayout.CENTER);
+        add(topWrapper, BorderLayout.NORTH);
 
+        
         // ==========================================
         // RESTORED: RECENT ACTIVITY & EXPORT BUTTON
         // ==========================================
@@ -47,6 +66,7 @@ public class DashboardPanel extends JPanel {
         lblTitle.setForeground(Color.WHITE);
         titlePanel.add(lblTitle, BorderLayout.WEST);
 
+        
         // The Green Export Button
         JButton btnExport = new JButton("📥 Export to Excel");
         btnExport.setBackground(new Color(46, 204, 113));
@@ -54,14 +74,13 @@ public class DashboardPanel extends JPanel {
         btnExport.setFont(AppConstants.metropolisBold);
         btnExport.addActionListener(e -> exportToExcel());
         
-     // Add this button near your Export to Excel button
+        // Archive Button
         JButton btnArchive = new JButton("Archive Old Items 🗑️");
         btnArchive.setFont(AppConstants.metropolisBold.deriveFont(14f));
-        btnArchive.setBackground(new Color(255, 102, 102)); // Light red to show it's a cleanup action
+        btnArchive.setBackground(new Color(255, 102, 102)); 
         btnArchive.setForeground(Color.WHITE);
         btnArchive.addActionListener(e -> archiveOldItems());
 
-        
         JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnWrapper.setOpaque(false);
         
@@ -110,13 +129,33 @@ public class DashboardPanel extends JPanel {
     public void refreshData() {
         try (Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
              Statement stmt = conn.createStatement()) {
+            
+            // Existing Stat Queries
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM items");
             if (rs.next()) lblTotalFound.setText(rs.getString(1));
+            
             rs = stmt.executeQuery("SELECT COUNT(*) FROM items WHERE status = 'CLAIMED'");
             if (rs.next()) lblTotalClaimed.setText(rs.getString(1));
+            
             rs = stmt.executeQuery("SELECT COUNT(*) FROM items WHERE status = 'UNCLAIMED'");
             if (rs.next()) lblTotalUnclaimed.setText(rs.getString(1));
 
+            // ==========================================
+            // NEW: ACTIONABLE ALERT LOGIC
+            // ==========================================
+            String alertQuery = "SELECT COUNT(*) FROM items WHERE status = 'UNCLAIMED' AND date_found <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+            rs = stmt.executeQuery(alertQuery);
+            if (rs.next()) {
+                int expiredCount = rs.getInt(1);
+                if (expiredCount > 0) {
+                    lblDisposalAlert.setText("🚨 ACTION REQUIRED: [ " + expiredCount + " ] Items are overdue for Disposal.");
+                    lblDisposalAlert.setVisible(true); // Show the alert!
+                } else {
+                    lblDisposalAlert.setVisible(false); // Hide it if everything is clean
+                }
+            }
+
+            // Table Refresh
             activityTableModel.setRowCount(0);
             rs = stmt.executeQuery("SELECT date_found, item_name, category, status, location_found FROM items ORDER BY date_found DESC LIMIT 10");
             while (rs.next()) {
@@ -124,6 +163,7 @@ public class DashboardPanel extends JPanel {
             }
         } catch (Exception ex) { ex.printStackTrace(); }
     }
+    
     private void archiveOldItems() {
         // 1. Confirm with the Admin first
         int confirm = JOptionPane.showConfirmDialog(this, 
@@ -151,7 +191,7 @@ public class DashboardPanel extends JPanel {
                 );
 
                 JOptionPane.showMessageDialog(this, "Successfully archived " + rowsAffected + " items.");
-                refreshData(); // Refresh the counts on the dashboard
+                refreshData(); // Refresh the counts on the dashboard (This will automatically clear the red alert text!)
             } else {
                 JOptionPane.showMessageDialog(this, "No expired items found to archive.");
             }
@@ -161,6 +201,7 @@ public class DashboardPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Cleanup Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+    
     // ==========================================
     // RESTORED: EXCEL/CSV EXPORT LOGIC
     // ==========================================
@@ -183,7 +224,6 @@ public class DashboardPanel extends JPanel {
             try (FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                  Connection conn = DriverManager.getConnection(AppConstants.DB_URL, AppConstants.DB_USER, AppConstants.DB_PASS);
                  Statement stmt = conn.createStatement();
-                 // FIX: Changed "ORDER BY date_found DESC" to "ORDER BY item_id ASC"
                  ResultSet rs = stmt.executeQuery("SELECT * FROM items WHERE " + dateCondition + " ORDER BY item_id ASC")) {
 
                 fw.append("Item ID,Item Name,Category,Location Found,Date Found,Sender Name,Sender ID,Status\n");

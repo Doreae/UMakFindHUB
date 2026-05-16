@@ -46,6 +46,14 @@ public class MainFrame extends JFrame {
         sidebar.setBackground(new Color(245, 245, 245));
         sidebar.setPreferredSize(new Dimension(230, 0));
         sidebar.add(Box.createRigidArea(new Dimension(0, 20)));
+        try {
+            ImageIcon logoIcon = new ImageIcon(new ImageIcon("src/lostandfound/images/logo.png").getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH));
+            JLabel lblSidebarLogo = new JLabel(logoIcon);
+            lblSidebarLogo.setAlignmentX(Component.CENTER_ALIGNMENT);
+            sidebar.add(lblSidebarLogo);
+        } catch (Exception e) {}
+
+        sidebar.add(Box.createRigidArea(new Dimension(0, 10))); 
 
         JLabel lblMenu = new JLabel("MENU");
         lblMenu.setFont(AppConstants.metropolisBold.deriveFont(20f));
@@ -109,6 +117,8 @@ public class MainFrame extends JFrame {
         });
         
         dashboardPanel.refreshData(); 
+        
+        
     }
 
     public void switchToCard(String cardName) { cardLayout.show(mainContentPanel, cardName); }
